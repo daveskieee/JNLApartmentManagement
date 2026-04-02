@@ -1,0 +1,9 @@
+Payment ID,Tenant Name,Email,Amount,Currency,Original Amount,Original Currency,Converted Amount,Converted Currency,Conversion Rate,Method,Status,Date
+25,Test Tenant,tenant@test.com,2500,PHP,2500,PHP,42.45,USD,0.01698,paypal,submitted,2/1/2026
+24,Test Tenant,tenant@test.com,5000,PHP,5000,PHP,84.9,USD,0.01698,paypal,submitted,2/1/2026
+23,Test Tenant,tenant@test.com,2500,PHP,2500,PHP,42.45,USD,0.01698,paypal,submitted,2/1/2026
+22,Test Tenant,tenant@test.com,42.45,PHP,42.45,PHP,0.72,USD,0.01698,paypal,submitted,2/1/2026
+21,Test Tenant,tenant@test.com,150,PHP,,,,,,cash,submitted,1/29/2026
+20,Test Tenant,tenant@test.com,100,PHP,,,,,,paypal,completed,1/29/2026
+19,Test Tenant,tenant@test.com,100,PHP,,,,,,paypal,completed,1/29/2026
+18,Test Tenant,tenant@test.com,150,PHP,,,,,,paypal,completed,1/29/2026

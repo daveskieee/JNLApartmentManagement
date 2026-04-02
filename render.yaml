@@ -1,0 +1,20 @@
+# Render service manifest - creates a Web Service for the backend when you connect this repo to Render
+# See: https://render.com/docs/deploy-using-manifest
+
+services:
+  - type: web
+    name: apartment-management-backend
+    env: node
+    plan: free
+    branch: main
+    root: backend
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    # Do NOT store secrets in this file. Add secure env vars in Render Dashboard after creating the service.
+    # Example of env vars to add via Render UI or API after service is created:
+    # envVars:
+    #  - key: JWT_SECRET
+    #    value: <YOUR_SECRET>
+    #  - key: FRONTEND_URL
+    #    value: https://apartmentmanagementsystem-smart-tenantsupport.netlify.app

@@ -1,0 +1,23 @@
+{
+  "name": "login-page",
+  "version": "1.0.0",
+  "description": "A minimal and aesthetic login page.",
+  "main": "src/index.html",
+  "scripts": {
+    "start": "live-server src"
+  },
+  "keywords": [
+    "login",
+    "minimal",
+    "aesthetic",
+    "html",
+    "css",
+    "javascript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "live-server": "^1.2.1"
+  }
+}

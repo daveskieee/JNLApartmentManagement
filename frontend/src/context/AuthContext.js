@@ -3,6 +3,9 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
+const apiBaseUrl = (process.env.REACT_APP_API_URL || '').trim();
+const apiPath = (path) => `${apiBaseUrl}${path}`;
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -30,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   const login = useCallback(async (email, password) => {
     setIsLoading(true);
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
+      const response = await axios.post(apiPath('/api/auth/login'), {
         email,
         password
       });
@@ -49,7 +52,7 @@ export const AuthProvider = ({ children }) => {
   const register = useCallback(async (email, password, fullName, role, phone, unitNumber) => {
     setIsLoading(true);
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/register`, {
+      const response = await axios.post(apiPath('/api/auth/register'), {
         email,
         password,
         fullName,

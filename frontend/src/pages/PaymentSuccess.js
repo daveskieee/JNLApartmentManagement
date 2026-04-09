@@ -36,9 +36,9 @@ const PaymentSuccess = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen page-wrapper p-8">
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+        <div className="card-base p-8 text-center">
           <FiCheckCircle className="text-green-600 mx-auto mb-4" size={64} />
           
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -69,7 +69,7 @@ const PaymentSuccess = () => {
           <div className="space-y-3">
             <button
               onClick={handleBackToPayments}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
+              className="w-full brand-button text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2 hover:opacity-95"
             >
               <FiArrowLeft size={20} />
               Back to Payments

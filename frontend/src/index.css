@@ -16,7 +16,520 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root {
+  --bg-base: #f7f1ee;
+  --surface: #ffffff;
+  --surface-soft: #fff2ef;
+  --surface-strong: #efd5cf;
+  --text-primary: #2f1f1d;
+  --text-muted: #7a5a55;
+  --border: #e0b6aa;
+  --accent: #c77b69; /* professional warm apartment brand */
+  --accent-dark: #9d5f51;
+  --accent-soft: #f0d6cf;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+.page-wrapper {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* Core card styles */
+.card-base {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 30px rgba(47, 31, 29, 0.08);
+  border-radius: 1rem;
+}
+
+.card-highlight {
+  background: var(--surface-soft);
+  border: 1px solid rgba(216, 140, 123, 0.45);
+}
+
+/* Brand theme utilities */
+.brand-header {
+  background: var(--accent-dark);
+  color: #ffffff;
+}
+
+.tenant-header {
+  background: #f7e5e0;
+  color: #1f1a17;
+}
+
+.tenant-header h1 {
+  color: #1f1a17;
+}
+
+.tenant-header p {
+  color: #5e4842;
+}
+
+.dashboard-header {
+  background: #f7e5e0;
+  color: #1f1a17;
+}
+
+.dashboard-header h1 {
+  color: #1f1a17;
+}
+
+.dashboard-header p {
+  color: #5e4842;
+}
+
+.brand-button {
+  background: var(--accent);
+  color: #fff;
+}
+
+.brand-button:hover {
+  background: var(--accent-dark);
+}
+
+.brand-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 30px rgba(47, 31, 29, 0.08);
+  border-radius: 1rem;
+}
+
+/* Typography & Hierarchy */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  line-height: 1.2;
+}
+
+h2 {
+  line-height: 1.3;
+}
+
+h3 {
+  line-height: 1.4;
+}
+
+.text-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.text-value {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Button Variants */
+.btn-primary {
+  @apply px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium transition duration-300 ease-out hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg active:scale-95;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 rounded-lg bg-slate-200 text-slate-800 font-medium transition duration-300 ease-out hover:bg-slate-300 hover:-translate-y-0.5 hover:shadow-md active:scale-95;
+}
+
+.btn-tertiary {
+  @apply px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium bg-white transition duration-300 ease-out hover:border-slate-400 hover:bg-slate-50 hover:-translate-y-0.5 hover:shadow-md active:scale-95;
+}
+
+.btn-ghost {
+  @apply px-4 py-2 rounded-lg text-slate-600 font-medium transition duration-300 ease-out hover:bg-slate-100 hover:text-slate-800;
+}
+
+.btn-danger {
+  @apply px-4 py-2 rounded-lg bg-red-600 text-white font-medium transition duration-300 ease-out hover:bg-red-700 hover:-translate-y-0.5 hover:shadow-lg active:scale-95;
+}
+
+.btn-success {
+  @apply px-4 py-2 rounded-lg bg-green-600 text-white font-medium transition duration-300 ease-out hover:bg-green-700 hover:-translate-y-0.5 hover:shadow-lg active:scale-95;
+}
+
+/* Form Styling */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="tel"],
+textarea,
+select {
+  @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 transition duration-200 ease-out placeholder:text-slate-400;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+input[type="tel"]:focus,
+textarea:focus,
+select:focus {
+  @apply outline-none ring-2 ring-indigo-500 ring-offset-2 border-indigo-500;
+}
+
+input[type="text"]:disabled,
+input[type="email"]:disabled,
+input[type="password"]:disabled,
+input[type="date"]:disabled,
+input[type="tel"]:disabled,
+textarea:disabled,
+select:disabled {
+  @apply bg-slate-100 text-slate-500 cursor-not-allowed;
+}
+
+/* Form Error & Success States */
+.form-error {
+  @apply border-red-500 ring-2 ring-red-100;
+}
+
+.form-error:focus {
+  @apply ring-red-500;
+}
+
+.form-success {
+  @apply border-green-500 ring-2 ring-green-100;
+}
+
+.form-success:focus {
+  @apply ring-green-500;
+}
+
+.error-text {
+  @apply text-xs text-red-600 font-medium mt-1;
+}
+
+.success-text {
+  @apply text-xs text-green-600 font-medium mt-1;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Loading Skeleton */
+.skeleton {
+  @apply bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:200%_100%] animate-pulse rounded-lg;
+}
+
+/* Premium transition splash dots (sequenced) */
+@keyframes splashDotWave {
+  0%, 100% {
+    opacity: 0.28;
+    transform: translateY(0) scale(0.82);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.06);
+  }
+  45% {
+    opacity: 0.45;
+    transform: translateY(0) scale(0.88);
+  }
+}
+
+.splash-progress-dot {
+  height: 0.625rem;
+  width: 0.625rem;
+  border-radius: 9999px;
+  background: #6366f1;
+  animation: splashDotWave 1s ease-in-out infinite;
+}
+
+.splash-progress-dot-1 { animation-delay: 0ms; }
+.splash-progress-dot-2 { animation-delay: 160ms; }
+.splash-progress-dot-3 { animation-delay: 320ms; }
+.splash-progress-dot-4 { animation-delay: 480ms; }
+
+/* Status Indicators */
+.status-online {
+  @apply h-3 w-3 bg-green-500 rounded-full inline-block;
+}
+
+.status-offline {
+  @apply h-3 w-3 bg-slate-400 rounded-full inline-block;
+}
+
+.status-pending {
+  @apply h-3 w-3 bg-yellow-500 rounded-full inline-block;
+}
+
+/* Badges */
+.badge-primary {
+  @apply inline-flex items-center px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold;
+}
+
+.badge-success {
+  @apply inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-semibold;
+}
+
+.badge-warning {
+  @apply inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-semibold;
+}
+
+.badge-danger {
+  @apply inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-semibold;
+}
+
+/* Card Enhancements */
+.card-elevated {
+  @apply card-base transition duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-indigo-200;
+}
+
+/* Data Card */
+.data-card {
+  @apply rounded-lg bg-white border border-slate-200 p-4 transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg;
+}
+
+/* Divider */
+.divider {
+  @apply h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent;
+}
+
+.brand-highlight {
+  background: var(--surface-soft);
+  border: 1px solid rgba(216, 140, 123, 0.35);
+}
+
+.brand-icon { color: var(--accent); }
+.brand-icon-muted { color: var(--text-muted); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-dark);
+}
+
+.bg-app-panel {
+  background: var(--surface-soft);
+}
+
+.bg-gradient-to-r,
+.bg-gradient-to-br,
+.bg-gradient-to-t,
+.bg-gradient-to-l,
+.bg-gradient-to-tr,
+.bg-gradient-to-bl,
+[class*="bg-[radial-gradient"] {
+  background-image: none !important;
+  background-color: var(--surface-soft) !important;
+}
+
+/* Tailwind color overrides to enforce palette consistency */
+.bg-slate-50,
+.bg-gray-50,
+.bg-white {
+  background-color: var(--surface) !important;
+}
+
+.bg-slate-100,
+.bg-gray-100,
+.bg-indigo-50,
+.bg-blue-50,
+.bg-cyan-50,
+.bg-amber-50 {
+  background-color: var(--surface-soft) !important;
+}
+
+.bg-slate-200,
+.bg-gray-200,
+.bg-indigo-100,
+.bg-blue-100,
+.bg-cyan-100,
+.bg-amber-100 {
+  background-color: var(--surface-strong) !important;
+}
+
+.bg-slate-800,
+.bg-slate-900,
+.bg-indigo-700,
+.bg-blue-700,
+.bg-indigo-800,
+.bg-blue-800 {
+  background-color: var(--accent-dark) !important;
+}
+
+.bg-indigo-600,
+.bg-blue-600,
+.bg-indigo-500,
+.bg-blue-500 {
+  background-color: var(--accent) !important;
+}
+
+.bg-indigo-400,
+.bg-blue-400,
+.bg-cyan-200,
+.bg-amber-200 {
+  background-color: var(--surface-soft) !important;
+}
+
+.text-slate-900,
+.text-gray-900,
+.text-blue-900,
+.text-indigo-900 {
+  color: var(--text-primary) !important;
+}
+
+.text-slate-700,
+.text-gray-700,
+.text-blue-700,
+.text-indigo-700,
+.text-indigo-600,
+.text-indigo-500,
+.text-blue-600,
+.text-cyan-600,
+.text-amber-600,
+.text-purple-500 {
+  color: var(--accent) !important;
+}
+
+.text-slate-300,
+.text-gray-300,
+.text-blue-300 {
+  color: #b78f86 !important;
+}
+
+.border-slate-700,
+.border-slate-600,
+.border-gray-300,
+.border-gray-200,
+.border-blue-200,
+.border-indigo-200,
+.border-cyan-200,
+.border-amber-200 {
+  border-color: var(--border) !important;
+}
+
+.border-blue-500,
+.border-indigo-500,
+.border-cyan-500,
+.border-amber-500,
+.border-indigo-400 {
+  border-color: var(--accent) !important;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-indigo-700:hover,
+.hover\:bg-blue-600:hover,
+.hover\:bg-indigo-600:hover,
+.hover\:bg-blue-500:hover,
+.hover\:bg-indigo-500:hover {
+  background-color: var(--accent-dark) !important;
+}
+
+.focus\:ring-blue-600:focus,
+.focus\:ring-indigo-500:focus {
+  --tw-ring-color: var(--accent) !important;
+}
+
+.focus\:border-blue-500:focus,
+.focus\:border-indigo-500:focus {
+  border-color: var(--accent) !important;
+}
+
+.bg-surface-soft {
+  background-color: var(--surface-soft) !important;
+}
+
+.bg-blue-100,
+.bg-indigo-100,
+.bg-slate-100,
+.bg-gray-100 {
+  background-color: var(--surface-soft) !important;
+}
+
+.bg-blue-200,
+.bg-indigo-200,
+.bg-slate-200,
+.bg-gray-200 {
+  background-color: var(--surface-strong) !important;
+}
+
+.bg-blue-700,
+.bg-indigo-700,
+.bg-indigo-800,
+.bg-blue-800,
+.from-indigo-700,
+.from-blue-700,
+.from-indigo-800 {
+  background-color: var(--accent-dark) !important;
+}
+
+.border-blue-600,
+.border-indigo-600 {
+  border-color: var(--accent) !important;
+}
+
+.border-blue-700,
+.border-indigo-700 {
+  border-color: var(--accent-dark) !important;
+}
+
+/* Amenity card focus and hover effect */
+.amenity-card {
+  transform: translateZ(0);
+  will-change: transform, box-shadow;
+}
+.amenity-card:hover,
+.amenity-card:focus-within {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.2);
+}
+
+.bg-green-600 {
+  background-color: var(--success) !important;
+}
+
+.bg-yellow-500 {
+  background-color: var(--warning) !important;
+}
+
+.bg-red-600 {
+  background-color: var(--danger) !important;
+}
+
+.text-indigo-100,
+.text-white {
+  color: #ffffff !important;
+}
+
+.text-slate-200,
+.text-gray-200,
+.text-blue-100,
+.text-indigo-100,
+.text-blue-200,
+.text-indigo-200 {
+  color: #94a3b8 !important;
+}
+
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+

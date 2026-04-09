@@ -42,9 +42,9 @@ const AdminUtilityDebug = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="min-h-screen page-wrapper p-6">
       <h1 className="text-2xl font-bold mb-4">Utility Debug / Test Page</h1>
-      <div className="bg-white p-4 rounded shadow mb-6">
+      <div className="card-base p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input value={form.tenantId} onChange={(e) => setForm({...form, tenantId: e.target.value})} placeholder="Tenant ID" className="px-3 py-2 border rounded" />
           <select value={form.utilityType} onChange={(e) => setForm({...form, utilityType: e.target.value})} className="px-3 py-2 border rounded">
@@ -62,12 +62,12 @@ const AdminUtilityDebug = () => {
           </select>
         </div>
         <div className="flex gap-3 mt-4">
-          <button onClick={submitReading} className="px-4 py-2 bg-blue-600 text-white rounded">Assign Reading</button>
-          <button onClick={loadHistory} className="px-4 py-2 bg-gray-200 rounded">Load History</button>
+          <button onClick={submitReading} className="px-4 py-2 brand-button text-white rounded hover:opacity-95">Assign Reading</button>
+          <button onClick={loadHistory} className="px-4 py-2 bg-slate-100 text-slate-700 rounded hover:bg-slate-200">Load History</button>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded shadow">
+      <div className="card-base p-4">
         <h2 className="font-semibold mb-3">Recent Readings</h2>
         {history.length === 0 ? (
           <p className="text-gray-500">No readings loaded</p>

@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertCircle, CreditCard, FileText, Loader } fro
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
+import { formatAppDate } from '../utils/dateTime';
 
 // PayPal SDK loader: implementation moved inside component so it can access component state.
 // (See the in-component implementation of loadPayPalScript near the top of PaymentPage.)
@@ -164,24 +165,45 @@ const PaymentPage = () => {
       return;
     }
 
-    if (selectedBill.currency && selectedBill.currency !== 'USD') {
+    console.log('[PAYMENT] Selected bill:', { 
+      id: selectedBill.id, 
+      amount: selectedBill.amount, 
+      currency: selectedBill.currency,
+      defaultCurrency 
+    });
+
+    const billCurrency = selectedBill.currency || defaultCurrency;
+    
+    if (billCurrency && billCurrency !== 'USD') {
+      console.log('[PAYMENT] Fetching conversion for', billCurrency, 'to USD');
+      
       const fetchConv = async () => {
         try {
           const token = localStorage.getItem('token');
-          const resp = await axios.get(`/api/payment/convert?amount=${encodeURIComponent(selectedBill.amount)}&from=${encodeURIComponent(selectedBill.currency)}&to=USD`, {
+          const convertUrl = `/api/payment/convert?amount=${encodeURIComponent(selectedBill.amount)}&from=${encodeURIComponent(billCurrency)}&to=USD`;
+          console.log('[PAYMENT] Conversion request:', convertUrl);
+          
+          const resp = await axios.get(convertUrl, {
             headers: { Authorization: `Bearer ${token}` }
           });
+          
+          console.log('[PAYMENT] Conversion response:', resp.data);
           setConversionInfo(resp.data?.data || null);
         } catch (err) {
-          console.error('Conversion fetch failed:', err);
+          console.error('[PAYMENT] Conversion fetch failed:', {
+            message: err.message,
+            status: err.response?.status,
+            data: err.response?.data
+          });
           setConversionInfo(null);
         }
       };
       fetchConv();
     } else {
+      console.log('[PAYMENT] Bill is already USD or no currency info, skipping conversion');
       setConversionInfo(null);
     }
-  }, [selectedBill]);
+  }, [selectedBill, defaultCurrency]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -358,26 +380,28 @@ const PaymentPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen page-wrapper">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="border-b border-[var(--border)] bg-gradient-to-b from-[#fff6f2] to-[#f8ede8] shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
           <button
             onClick={() => navigate('/tenant')}
-            className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium mb-4 transition"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/80 px-4 py-2 text-sm font-semibold text-[var(--accent-dark)] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
             <span>Back to Dashboard</span>
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Make a Payment</h1>
-          <p className="text-gray-600 mt-2">Pay your pending bills securely</p>
+          <div className="mt-5">
+            <h1 className="text-3xl font-bold text-[var(--text-primary)]">Make a Payment</h1>
+            <p className="mt-2 text-[var(--text-muted)]">Pay your pending bills securely</p>
+          </div>
         </div>
       </div>
 
       {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center max-w-md shadow-xl">
+          <div className="card-base p-8 text-center max-w-md">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Submitted!</h2>
             <p className="text-gray-600">Your payment has been recorded successfully. Redirecting...</p>
@@ -391,14 +415,14 @@ const PaymentPage = () => {
           
           {/* Pending Bills */}
           <div className="md:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6 sticky top-24">
+            <div className="sticky top-24 rounded-2xl border border-[var(--border)] bg-white/95 p-6 shadow-[0_14px_32px_rgba(47,31,29,0.08)] backdrop-blur-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
                 <FileText size={20} className="text-blue-600" />
                 <span>Pending Bills</span>
               </h2>
               
               {pendingBills.length === 0 ? (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                <div className="rounded-xl border border-green-200 bg-green-50/80 p-4 text-center">
                   <CheckCircle className="w-10 h-10 text-green-600 mx-auto mb-2" />
                   <p className="text-green-800 font-medium">No pending bills</p>
                 </div>
@@ -410,13 +434,13 @@ const PaymentPage = () => {
                       onClick={() => handleBillSelect(bill)}
                       className={`w-full p-4 rounded-lg border-2 transition text-left font-medium ${
                         selectedBill?.id === bill.id
-                          ? 'border-blue-500 bg-blue-50 shadow-md'
-                          : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                          ? 'border-blue-500 bg-surface-soft shadow-md'
+                          : 'border-gray-200 hover:border-blue-100 hover:bg-surface-soft'
                       }`}
                     >
                       <p className="font-bold text-gray-900">{formatCurrency(bill.amount, bill.currency || defaultCurrency)}</p>
                       <p className="text-sm text-gray-600 mt-1">
-                        Due: {new Date(bill.due_date).toLocaleDateString()}
+                        Due: {formatAppDate(bill.due_date)}
                       </p>
                     </button>
                   ))}
@@ -427,14 +451,14 @@ const PaymentPage = () => {
 
           {/* Payment Form */}
           <div className="md:col-span-2">
-            <div className="bg-white rounded-lg shadow p-8">
+            <div className="rounded-2xl border border-[var(--border)] bg-white/95 p-8 shadow-[0_14px_32px_rgba(47,31,29,0.08)] backdrop-blur-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center space-x-2">
                 <CreditCard size={20} className="text-blue-600" />
                 <span>Payment Details</span>
               </h2>
 
               {!selectedBill ? (
-                <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                <div className="rounded-xl border border-[var(--border)] bg-[#fff7f4] p-6 text-center">
                   <AlertCircle className="w-12 h-12 text-blue-600 mx-auto mb-3" />
                   <p className="text-gray-700 font-medium">Please select a bill to proceed</p>
                 </div>
@@ -524,8 +548,8 @@ const PaymentPage = () => {
                   {formData.paymentMethod === 'paypal' ? (
                     <>
                       {/* PayPal Info */}
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-900">
+                      <div className="p-4 card-soft border border-blue-200 rounded-lg">
+                        <p className="text-sm text-slate-700">
                           <strong>PayPal Payment:</strong> You'll be securely redirected to PayPal to complete your payment. Your transaction will be processed immediately.
                         </p>
                       </div>
@@ -558,7 +582,7 @@ const PaymentPage = () => {
                           type="button"
                           onClick={handlePayPalPayment}
                           disabled={submitting || paypalButtonsRendered}
-                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                          className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                         >
                           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M9.12 11.46h2.73c.33 0 .61.27.61.6 0 .33-.28.6-.61.6H9.12v-1.2zm7.18 0h3.07c.33 0 .61.27.61.6 0 .33-.28.6-.61.6h-3.07v-1.2z" />
@@ -566,8 +590,8 @@ const PaymentPage = () => {
                           <span>{paypalButtonsRendered ? 'PayPal Ready — Use buttons below' : 'Pay with PayPal'}</span>
                         </button>
                       ) : !paypalError && (
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                          <p className="text-sm text-blue-900">Loading PayPal... Please wait.</p>
+                        <div className="p-4 card-soft border border-slate-200 rounded-lg text-center bg-slate-100">
+                          <p className="text-sm text-slate-900">Loading PayPal... Please wait.</p>
                         </div>
                       )}
 
@@ -580,7 +604,7 @@ const PaymentPage = () => {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                        className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                       >
                         {submitting ? (
                           <>

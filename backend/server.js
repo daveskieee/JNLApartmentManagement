@@ -9,6 +9,7 @@ dotenv.config();
 // Initialize database
 const db = require('./config/database');
 const { dbReady } = require('./config/database');
+const { getMeralcoRates } = require('./services/meralco-rates');
 
 const app = express();
 
@@ -86,6 +87,8 @@ const chatbotRoutes = require('./routes/chatbot');
 console.log('[INIT] Chatbot routes loaded');
 const notificationsRoutes = require('./routes/notifications');
 console.log('[INIT] Notifications routes loaded');
+const appointmentRoutes = require('./routes/appointment');
+console.log('[INIT] Appointment routes loaded');
 console.log('[INIT] All routes loaded successfully');
 
 // API Routes
@@ -108,6 +111,8 @@ app.use('/api/chatbot', chatbotRoutes);
 console.log('[INIT] Chatbot routes registered');
 app.use('/api/notifications', notificationsRoutes);
 console.log('[INIT] Notifications routes registered');
+app.use('/api/appointment', appointmentRoutes);
+console.log('[INIT] Appointment routes registered');
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -119,6 +124,28 @@ app.get('/api/health', (req, res) => {
 app.get('/test', (req, res) => {
   console.log('[ROUTE] GET /test called');
   res.json({ test: 'OK' });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  console.log('[ROUTE] GET / called');
+  res.json({ 
+    status: 'ok', 
+    message: 'Apartment Management API', 
+    endpoints: {
+      health: '/api/health',
+      test: '/test',
+      auth: '/api/auth',
+      tenant: '/api/tenant',
+      rent: '/api/rent',
+      utility: '/api/utility',
+      complaint: '/api/complaint',
+      admin: '/api/admin',
+      payment: '/api/payment',
+      chatbot: '/api/chatbot',
+      appointment: '/api/appointment'
+    }
+  });
 });
 
 // Error handling middleware
@@ -141,6 +168,23 @@ dbReady.then(() => {
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`[SUCCESS] Server running on port ${PORT} on all interfaces`);
       console.log('[SUCCESS] Server is ready to accept connections');
+
+      // Non-blocking startup probe so operators can see live-source status immediately.
+      (async () => {
+        try {
+          const rates = await getMeralcoRates();
+          const source = rates?.source || 'unknown';
+          const stamp = rates?.timestamp || new Date().toISOString();
+
+          if (source === 'meralco') {
+            console.log(`[MERALCO][STARTUP] Live source connected: ${rates.url || 'configured endpoint'} | rate=${rates.rate_kwh} ${rates.unit || 'PHP/kWh'} | updated=${stamp}`);
+          } else {
+            console.warn(`[MERALCO][STARTUP] Running in ${source} mode | rate=${rates?.rate_kwh ?? 'n/a'} ${rates?.unit || 'PHP/kWh'} | updated=${stamp}`);
+          }
+        } catch (error) {
+          console.warn(`[MERALCO][STARTUP] Probe failed, fallback behavior will apply: ${error.message}`);
+        }
+      })();
     });
     
     server.on('error', (err) => {

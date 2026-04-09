@@ -44,8 +44,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     );
 
     // Get utility data
-    const utilities = await dbAll(
-      'SELECT * FROM utility_readings WHERE tenant_id = ? ORDER BY reading_date DESC LIMIT 12',
+      const utilities = await dbAll(
+        'SELECT * FROM utility_readings WHERE tenant_id = ? ORDER BY reading_date DESC, id DESC LIMIT 12',
       [userId]
     );
 
@@ -67,6 +67,54 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Failed to fetch dashboard', error: error.message });
+  }
+});
+
+// Update tenant profile
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fullName, phone } = req.body;
+
+    // Validate tenant
+    const tenant = await dbGet(
+      'SELECT * FROM users WHERE id = ? AND role = ?',
+      [userId, 'tenant']
+    );
+
+    if (!tenant) {
+      return res.status(403).json({ success: false, message: 'Only tenants can access this' });
+    }
+
+    // Update profile
+    const dbRun = (sql, params) => {
+      return new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID });
+        });
+      });
+    };
+
+    await dbRun(
+      'UPDATE users SET full_name = ?, phone = ?, updated_at = datetime("now") WHERE id = ?',
+      [fullName || tenant.full_name, phone || tenant.phone, userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      user: {
+        id: userId,
+        email: tenant.email,
+        fullName: fullName || tenant.full_name,
+        phone: phone || tenant.phone,
+        role: tenant.role
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Failed to update profile', error: error.message });
   }
 });
 

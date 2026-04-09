@@ -26,7 +26,15 @@ router.get('/status/:tenantId', authenticateToken, async (req, res) => {
       'SELECT * FROM rent_payments WHERE tenant_id = ? ORDER BY due_date DESC',
       [tenantId]
     );
-    console.log('[RENT] Bills found:', bills);
+    console.log('[RENT] Bills found:', bills?.length || 0, 'bills');
+    if (bills?.length > 0) {
+      console.log('[RENT] First bill sample:', { 
+        id: bills[0].id, 
+        amount: bills[0].amount, 
+        currency: bills[0].currency,
+        status: bills[0].status 
+      });
+    }
     
     res.json({ success: true, data: bills || [] });
   } catch (error) {

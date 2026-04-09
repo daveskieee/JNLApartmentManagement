@@ -1,21 +1,35 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 
 const RegisterPage = () => {
+  const navigate = useNavigate();
+  const { user, token } = useContext(AuthContext);
+  
+  useEffect(() => {
+    // Redirect if not authenticated or not admin
+    if (!token) {
+      toast.error('Admin authentication required');
+      navigate('/login');
+      return;
+    }
+    if (user?.role !== 'admin') {
+      toast.error('Only admins can create tenant accounts');
+      navigate('/admin');
+      return;
+    }
+  }, [token, user, navigate]);
+
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    confirmPassword: '',
     fullName: '',
     phone: '',
     unitNumber: '',
     role: 'tenant'
   });
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useContext(AuthContext);
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,14 +39,8 @@ const RegisterPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    // Tenant-only registration - no admin/maintenance creation
-    if (formData.role !== 'tenant') {
-      toast.error('Only tenant registration is available. Contact admin for other roles.');
+    if (!formData.fullName) {
+      toast.error('Full name is required');
       return;
     }
 
@@ -44,123 +52,115 @@ const RegisterPage = () => {
     setIsLoading(true);
 
     try {
-      await register(formData.email, formData.password, formData.fullName, formData.role, formData.phone, formData.unitNumber);
-      toast.success('Registration successful!');
-      navigate('/tenant');
+      const apiUrl = process.env.REACT_APP_API_URL || '';
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const response = await axios.post(`${apiUrl}/api/auth/admin/create-tenant`, {
+        email: formData.email,
+        fullName: formData.fullName,
+        phone: formData.phone,
+        unitNumber: formData.unitNumber
+      }, config);
+      
+      toast.success(response.data?.message || `Tenant ${formData.fullName} created successfully!`);
+      setFormData({
+        email: '',
+        fullName: '',
+        phone: '',
+        unitNumber: '',
+        role: 'tenant'
+      });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration failed');
+      toast.error(error.response?.data?.message || 'Failed to create tenant account');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Tenant Registration</h1>
-        <p className="text-gray-600 mb-6">Create your tenant account</p>
+    <div className="min-h-screen page-wrapper relative flex items-center justify-center p-4">
+      <div className="card-base p-8 w-full max-w-md">
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Tenant Account</h1>
+        <p className="text-slate-600 mb-6">Admin - Create a new tenant account</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Full Name</label>
+            <label className="block text-slate-700 font-medium mb-2">Full Name</label>
             <input
               type="text"
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your full name"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Email</label>
+            <label className="block text-slate-700 font-medium mb-2">Email</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your email"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Unit Number *</label>
+            <label className="block text-slate-700 font-medium mb-2">Unit Number *</label>
             <input
               type="text"
               name="unitNumber"
               value={formData.unitNumber}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="e.g., A-101, B-202"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Phone (Optional)</label>
+            <label className="block text-slate-700 font-medium mb-2">Phone (Optional)</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your phone number"
             />
           </div>
 
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-sm text-gray-600">
-              <strong>Note:</strong> You are registering as a Tenant. For admin or maintenance registration, contact the property manager.
+          <div className="card-soft p-3 rounded-lg">
+            <p className="text-sm text-slate-500">
+              <strong>Note:</strong> This page is restricted to administrators. A secure activation link will be emailed automatically so the tenant can create their own password.
             </p>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Password</label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              placeholder="Enter your password"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Confirm Password</label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              placeholder="Confirm your password"
-            />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="w-full brand-button font-medium py-2 rounded-lg hover:opacity-95 disabled:opacity-50"
           >
-            {isLoading ? 'Registering...' : 'Register as Tenant'}
+            {isLoading ? 'Creating...' : 'Create Tenant Account'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:underline font-medium">
-              Login here
+            <Link to="/admin" className="text-blue-600 hover:underline font-medium">
+              Back to Admin Dashboard
             </Link>
           </p>
         </div>
+
+        <Link to="/" className="block w-full mt-6 px-4 py-2 rounded-lg bg-[#c77b69] text-white border border-[#c77b69] shadow-sm hover:bg-[#9d5f51] transition font-semibold text-center">
+          Back to Home
+        </Link>
       </div>
     </div>
   );

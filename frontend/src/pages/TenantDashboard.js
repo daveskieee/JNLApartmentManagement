@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { CreditCard, AlertCircle, RefreshCw, FileText, CheckCircle, Clock, XCircle, Droplet, Zap } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import AuthContext from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatAppDate } from '../utils/dateTime';
 
 
 const TenantDashboard = () => {
@@ -23,6 +25,39 @@ const TenantDashboard = () => {
     pendingBills: 0,
     totalPaid: 0,
   });
+  const [meralcoRates, setMeralcoRates] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const seenBillIdsRef = useRef(new Set());
+  const hasInitializedBillsRef = useRef(false);
+
+  const notifyForNewUnpaidBills = (allBills = []) => {
+    const normalizedIds = allBills
+      .map((bill) => (bill?.id != null ? String(bill.id) : null))
+      .filter(Boolean);
+
+    // Prime baseline on first load so existing bills do not trigger "new" toasts.
+    if (!hasInitializedBillsRef.current) {
+      seenBillIdsRef.current = new Set(normalizedIds);
+      hasInitializedBillsRef.current = true;
+      return;
+    }
+
+    const newlySeenUnpaid = allBills.filter((bill) => {
+      const id = bill?.id != null ? String(bill.id) : null;
+      if (!id) return false;
+      const isNew = !seenBillIdsRef.current.has(id);
+      const isUnpaid = (bill?.status || '').toLowerCase() !== 'paid';
+      return isNew && isUnpaid;
+    });
+
+    if (newlySeenUnpaid.length > 0) {
+      toast.success(`You have ${newlySeenUnpaid.length} new unpaid bill(s)`);
+    }
+
+    // Always update seen cache so already discovered bills don't retrigger.
+    seenBillIdsRef.current = new Set(normalizedIds);
+  };
 
   const formatCurrency = (amount = 0, currency = defaultCurrency) => {
     const code = currency === 'USD' ? 'USD' : 'PHP';
@@ -36,6 +71,7 @@ const TenantDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchNotifications();
 
     // Subscribe to server-sent events for real-time updates (if token present)
     const token = localStorage.getItem('token');
@@ -50,9 +86,11 @@ const TenantDashboard = () => {
             toast.success(data.message || 'New bill created');
             // Fetch new data immediately
             fetchDashboardData();
+            fetchNotifications();
           } catch (err) {
             console.warn('Failed to parse new_bill event', err);
             fetchDashboardData();
+            fetchNotifications();
           }
         });
         es.addEventListener('utility_update', (e) => {
@@ -60,9 +98,11 @@ const TenantDashboard = () => {
             const data = JSON.parse(e.data);
             toast.success(data.message || 'Utility updated');
             fetchDashboardData();
+            fetchNotifications();
           } catch (err) {
             console.warn('Failed to parse utility_update event', err);
             fetchDashboardData();
+            fetchNotifications();
           }
         });
 
@@ -71,9 +111,11 @@ const TenantDashboard = () => {
             const data = JSON.parse(e.data);
             toast.success(data.message || `Bill status: ${data.status}`);
             fetchDashboardData();
+            fetchNotifications();
           } catch (err) {
             console.warn('Failed to parse bill_update event', err);
             fetchDashboardData();
+            fetchNotifications();
           }
         });
         es.onerror = (err) => {
@@ -88,6 +130,7 @@ const TenantDashboard = () => {
     const interval = setInterval(() => {
       fetchBillsQuiet();
       fetchUtilitiesQuiet();
+      fetchNotificationsQuiet();
     }, 15000);
 
     return () => {
@@ -115,13 +158,15 @@ const TenantDashboard = () => {
       }
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [billsRes, complaintsRes] = await Promise.all([
-        axios.get(`/api/rent/status/${userId}`, { headers }),
-        axios.get('/api/complaint/my-complaints', { headers }),
-      ]);
-
-      const billsData = billsRes.data?.data || billsRes.data || [];
-      const complaintsData = complaintsRes.data?.data || complaintsRes.data || [];
+      // Unified tenant overview (synced with chatbot/suggestions)
+      const overviewRes = await axios.get('/api/chatbot/tenant-overview', { headers });
+      const overview = overviewRes.data?.data || {};
+      
+      const billsData = overview.bills || [];
+      const complaintsData = overview.complaints || [];
+      const utilitiesData = overview.utilities || [];
+      const currentMeralcoRates = overview.meralco_rates || null;
+      setMeralcoRates(currentMeralcoRates);
       
       // Normalize and sort bills by due_date (latest -> oldest)
       const sortedBills = (billsData || []).slice().sort((a, b) => {
@@ -130,38 +175,41 @@ const TenantDashboard = () => {
         return bDate - aDate;
       });
 
-      // Detect new bill additions
-      const prevIds = new Set(bills.map(b => b.id));
-      const newBills = sortedBills.filter(b => !prevIds.has(b.id));
-      if (newBills.length > 0) {
-        toast.success(`You have ${newBills.length} new bill(s)`);
-      }
+      notifyForNewUnpaidBills(sortedBills);
 
       setBills(sortedBills);
       setComplaints(complaintsData);
 
-      // Fetch latest utilities for this tenant
-      try {
-        const utilRes = await axios.get(`/api/utility/latest/${userId}`, { headers });
-        const latest = utilRes.data?.data || {};
-        const currencyFromUser = parsedUser?.currency || user?.currency || defaultCurrency;
-        setUtilities({
-          water: {
-            usage: latest.water?.usage || 0,
-            cost: latest.water?.cost || 0,
-            unit: latest.water?.unit || 'cu.m',
-            currency: currencyFromUser
-          },
-          electricity: {
-            usage: latest.electricity?.usage || 0,
-            cost: latest.electricity?.cost || 0,
-            unit: latest.electricity?.unit || 'kWh',
-            currency: currencyFromUser
-          }
-        });
-      } catch (uErr) {
-        console.warn('Failed to fetch utilities:', uErr?.message || uErr);
-      }
+      // Process utilities (same data structure as chatbot sees)
+      const currencyFromUser = parsedUser?.currency || user?.currency || defaultCurrency;
+      const latest = {};
+      utilitiesData.forEach(u => {
+        const type = u.utility_type || u.meter_type || 'unknown';
+        if (!latest[type]) {
+          latest[type] = {
+            usage: u.reading_value || u.reading || 0,
+            cost: u.estimated_cost || u.cost || 0,
+            rate: u.water_rate != null ? u.water_rate : null,
+            unit: u.unit || ''
+          };
+        }
+      });
+
+      setUtilities({
+        water: {
+          usage: latest.water?.usage || 0,
+          cost: latest.water?.cost || 0,
+          rate: latest.water?.rate != null ? latest.water.rate : (latest.water?.usage ? latest.water.cost / latest.water.usage : null),
+          unit: latest.water?.unit || 'cu.m',
+          currency: currencyFromUser
+        },
+        electricity: {
+          usage: latest.electricity?.usage || 0,
+          cost: latest.electricity?.cost || 0,
+          unit: latest.electricity?.unit || 'kWh',
+          currency: currencyFromUser
+        }
+      });
 
       // Calculate stats
       const totalBills = billsData.length || 0;
@@ -187,7 +235,56 @@ const TenantDashboard = () => {
     }
   };
 
-  // Quietly refresh only bills (used by polling)
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [listRes, countRes] = await Promise.all([
+        axios.get('/api/notifications?limit=8', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('/api/notifications/unread-count', { headers }).catch(() => ({ data: { data: { unread: 0 } } })),
+      ]);
+
+      setNotifications(listRes.data?.data || []);
+      setUnreadNotifications(countRes.data?.data?.unread || 0);
+    } catch (error) {
+      console.warn('Failed to load notifications:', error?.message || error);
+    }
+  };
+
+  const fetchNotificationsQuiet = async () => {
+    await fetchNotifications();
+  };
+
+  const markNotificationRead = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      await axios.patch(`/api/notifications/${id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchNotifications();
+    } catch (error) {
+      console.warn('Failed to mark notification as read:', error?.message || error);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      await axios.patch('/api/notifications/mark-all-read', {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchNotifications();
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.warn('Failed to mark all notifications as read:', error?.message || error);
+    }
+  };
+
+  // Quietly refresh data using unified endpoint (used by polling)
   const fetchBillsQuiet = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -196,21 +293,20 @@ const TenantDashboard = () => {
       const userId = parsedUser?.id || user?.id;
       if (!token || !userId) return;
       const headers = { Authorization: `Bearer ${token}` };
-      const billsRes = await axios.get(`/api/rent/status/${userId}`, { headers });
-      const billsData = billsRes.data?.data || billsRes.data || [];
-
-      // Detect newly added bills compared to current list
-      const prevIds = new Set(bills.map(b => b.id));
-      const newBills = billsData.filter(b => !prevIds.has(b.id));
-      if (newBills.length > 0 && bills.length > 0) {
-        toast.success(`You have ${newBills.length} new bill(s)`);
-      }
+      
+      const overviewRes = await axios.get('/api/chatbot/tenant-overview', { headers });
+      const overview = overviewRes.data?.data || {};
+      const billsData = overview.bills || [];
+      const currentMeralcoRates = overview.meralco_rates || null;
+      setMeralcoRates(currentMeralcoRates);
 
       const sortedBills = (billsData || []).slice().sort((a, b) => {
         const aDate = new Date(a.due_date || a.created_at || 0).getTime();
         const bDate = new Date(b.due_date || b.created_at || 0).getTime();
         return bDate - aDate;
       });
+
+      notifyForNewUnpaidBills(sortedBills);
 
       setBills(sortedBills);
 
@@ -222,56 +318,45 @@ const TenantDashboard = () => {
         .reduce((sum, b) => sum + (b.amount || 0), 0) || 0;
 
       setStats({ totalBills, paidBills, pendingBills, totalPaid });
-    } catch (err) {
-      console.warn('Quiet bills refresh failed:', err?.message || err);
-    }
-  };
 
-  // Quietly refresh utilities (used by polling)
-  const fetchUtilitiesQuiet = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const userStr = localStorage.getItem('user');
-      const parsedUser = userStr ? JSON.parse(userStr) : null;
-      const userId = parsedUser?.id || user?.id;
-      if (!token || !userId) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      const utilRes = await axios.get(`/api/utility/latest/${userId}`, { headers });
-      const latest = utilRes.data?.data || {};
+      // Also update utilities
+      const utilitiesData = overview.utilities || [];
       const currencyFromUser = parsedUser?.currency || user?.currency || defaultCurrency;
-      
-      // Check if utilities have changed
-      const prevWater = utilities.water;
-      const prevElec = utilities.electricity;
-      const newWaterUsage = latest.water?.usage || 0;
-      const newElecUsage = latest.electricity?.usage || 0;
-      
-      // Notify only if there's a change
-      if (prevWater.usage !== newWaterUsage || prevElec.usage !== newElecUsage) {
-        if (prevWater.usage !== 0 || prevElec.usage !== 0) {
-          // Only toast if utilities were already loaded (not first load)
-          toast.success('Utility readings updated');
+      const latest = {};
+      utilitiesData.forEach(u => {
+        const type = u.utility_type || u.meter_type || 'unknown';
+        if (!latest[type]) {
+          latest[type] = {
+            usage: u.reading_value || u.reading || 0,
+            cost: u.estimated_cost || u.cost || 0,
+            rate: u.water_rate != null ? u.water_rate : null,
+            unit: u.unit || ''
+          };
         }
-      }
-      
+      });
       setUtilities({
         water: {
-          usage: newWaterUsage,
+          usage: latest.water?.usage || 0,
           cost: latest.water?.cost || 0,
+          rate: latest.water?.rate != null ? latest.water.rate : (latest.water?.usage ? latest.water.cost / latest.water.usage : null),
           unit: latest.water?.unit || 'cu.m',
           currency: currencyFromUser
         },
         electricity: {
-          usage: newElecUsage,
+          usage: latest.electricity?.usage || 0,
           cost: latest.electricity?.cost || 0,
           unit: latest.electricity?.unit || 'kWh',
           currency: currencyFromUser
         }
       });
     } catch (err) {
-      console.warn('Quiet utilities refresh failed:', err?.message || err);
+      console.warn('Quiet refresh failed:', err?.message || err);
     }
+  };
+
+  // Alias for backward compatibility (data now comes with fetchBillsQuiet)
+  const fetchUtilitiesQuiet = async () => {
+    // Data is now fetched with bills via unified endpoint
   };
 
   const getStatusBadge = (status) => {
@@ -295,12 +380,17 @@ const TenantDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="min-h-screen page-wrapper pb-12"
+    >
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-8">
+      <div className="tenant-header py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold">Welcome, {user?.name || 'Tenant'}!</h1>
-          <p className="text-blue-100 mt-2">Manage your payments and property information</p>
+          <h1 className="text-3xl font-bold text-slate-900">Welcome, {user?.fullName || user?.name || 'Tenant'}!</h1>
+          <p className="text-slate-700 mt-2">Manage your payments and property information</p>
         </div>
       </div>
 
@@ -311,64 +401,64 @@ const TenantDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Link
             to="/tenant/payments"
-            className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
+            className="brand-button text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
           >
-            <CreditCard size={32} className="group-hover:rotate-12 transition" />
+            <CreditCard size={32} className="text-white group-hover:rotate-12 transition" />
             <div>
               <p className="font-bold text-lg">Pay Bills</p>
-              <p className="text-sm text-emerald-100">Submit payments</p>
+              <p className="text-sm text-white">Submit payments</p>
             </div>
           </Link>
 
           <Link
             to="/tenant/complaints"
-            className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
+            className="brand-button text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
           >
-            <AlertCircle size={32} className="group-hover:rotate-12 transition" />
+            <AlertCircle size={32} className="text-white group-hover:rotate-12 transition" />
             <div>
               <p className="font-bold text-lg">File Complaint</p>
-              <p className="text-sm text-orange-100">Report issues</p>
+              <p className="text-sm text-white">Report issues</p>
             </div>
           </Link>
 
           <button
             onClick={fetchDashboardData}
-            className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
+            className="brand-button text-white p-6 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition transform duration-200 flex items-center space-x-4 group"
           >
-            <RefreshCw size={32} className="group-hover:rotate-180 transition duration-500" />
+            <RefreshCw size={32} className="text-white group-hover:rotate-180 transition duration-500" />
             <div>
               <p className="font-bold text-lg">Refresh</p>
-              <p className="text-sm text-blue-100">Update data</p>
+              <p className="text-sm text-white">Update data</p>
             </div>
           </button>
         </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-            <p className="text-gray-600 text-sm font-medium">Total Bills</p>
+          <div className="card-base bg-white border border-slate-200 p-6">
+            <p className="text-slate-600 text-sm font-medium">Total Bills</p>
             <p className="text-3xl font-bold text-blue-600">{stats.totalBills}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-            <p className="text-gray-600 text-sm font-medium">Paid</p>
-            <p className="text-3xl font-bold text-green-600">{stats.paidBills}</p>
+          <div className="card-base bg-white border border-slate-200 p-6">
+            <p className="text-slate-500 text-sm font-medium">Paid</p>
+            <p className="text-3xl font-bold text-green-400">{stats.paidBills}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-            <p className="text-gray-600 text-sm font-medium">Pending</p>
-            <p className="text-3xl font-bold text-yellow-600">{stats.pendingBills}</p>
+          <div className="card-base bg-white border border-slate-200 p-6">
+            <p className="text-slate-500 text-sm font-medium">Pending</p>
+            <p className="text-3xl font-bold text-yellow-500">{stats.pendingBills}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-            <p className="text-gray-600 text-sm font-medium">Total Paid</p>
-            <p className="text-3xl font-bold text-purple-600">{formatCurrency(stats.totalPaid)}</p>
+          <div className="card-base bg-white border border-slate-200 p-6">
+            <p className="text-slate-500 text-sm font-medium">Total Paid</p>
+            <p className="text-3xl font-bold text-purple-500">{formatCurrency(stats.totalPaid)}</p>
           </div>
         </div>
 
         {/* Utilities Analytics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg shadow p-6 border-l-4 border-cyan-500">
+          <div className="card-base bg-white border border-slate-200 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-                <Droplet size={24} className="text-cyan-600" />
+                <Droplet size={24} className="text-indigo-600" />
                 <span>Water Usage</span>
               </h3>
             </div>
@@ -377,17 +467,27 @@ const TenantDashboard = () => {
                 <p className="text-gray-600 text-sm">Current Usage</p>
                 <p className="text-3xl font-bold text-cyan-600">{utilities.water.usage} <span className="text-lg">{utilities.water.unit}</span></p>
               </div>
-              <div className="bg-white bg-opacity-60 rounded p-3">
-                <p className="text-gray-600 text-sm">Estimated Cost</p>
+              <div className="card-soft p-3">
+                <p className="text-slate-600 text-sm">Estimated Cost</p>
                 <p className="text-2xl font-bold text-cyan-700">{formatCurrency(utilities.water.cost, utilities.water.currency)}</p>
               </div>
+              {utilities.water.rate != null && (
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm mt-3">
+                  <p className="text-slate-500 text-xs uppercase tracking-[0.18em] font-semibold">Current Water Rate</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 flex items-baseline gap-2">
+                    <span>₱{utilities.water.rate.toFixed(4)}</span>
+                    <span className="text-sm font-medium text-slate-500">/ m³</span>
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">Rate manually entered by admin</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-lg shadow p-6 border-l-4 border-amber-500">
+          <div className="card-base bg-white border border-slate-200 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-                <Zap size={24} className="text-amber-600" />
+                <Zap size={24} className="text-indigo-600" />
                 <span>Electricity Usage</span>
               </h3>
             </div>
@@ -396,44 +496,64 @@ const TenantDashboard = () => {
                 <p className="text-gray-600 text-sm">Current Usage</p>
                 <p className="text-3xl font-bold text-amber-600">{utilities.electricity.usage} <span className="text-lg">{utilities.electricity.unit}</span></p>
               </div>
-              <div className="bg-white bg-opacity-60 rounded p-3">
-                <p className="text-gray-600 text-sm">Estimated Cost</p>
+              <div className="card-soft p-3">
+                <p className="text-slate-600 text-sm">Estimated Cost</p>
                 <p className="text-2xl font-bold text-amber-700">{formatCurrency(utilities.electricity.cost, utilities.electricity.currency)}</p>
               </div>
+              {meralcoRates && (
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="text-slate-500 text-xs uppercase tracking-[0.18em] font-semibold">Current MERALCO Rate</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900 flex items-baseline gap-2">
+                        <span>₱{meralcoRates.rate_kwh?.toFixed(4)}</span>
+                        <span className="text-sm font-medium text-slate-500">/ kWh</span>
+                      </p>
+                    </div>
+                    <div className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold ${meralcoRates.trend === 'down' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : meralcoRates.trend === 'up' ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-800 border-slate-200'} border`}>
+                      <span>{meralcoRates.trend === 'down' ? '📉' : meralcoRates.trend === 'up' ? '📈' : '➡️'}</span>
+                      <span className="capitalize">{meralcoRates.trend || 'stable'}</span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600">
+                    {meralcoRates.rate_change_percent != null ? `Change: ${meralcoRates.rate_change_percent >= 0 ? '+' : '-'}${Math.abs(meralcoRates.rate_change_percent).toFixed(2)}%` : 'Rate change unavailable'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Recent Bills */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-              <FileText size={24} className="text-blue-600" />
+        <div className="card-base bg-white border border-slate-200 mb-8">
+          <div className="px-6 py-4 border-b border-slate-200 bg-white rounded-t-lg">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+              <FileText size={24} className="text-indigo-500" />
               <span>Recent Bills</span>
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-soft border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Due Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Due Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-700">
                 {bills.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="4" className="px-6 py-8 text-center text-slate-400">
                       No bills found
                     </td>
                   </tr>
                 ) : (
                   bills.slice(0, 5).map((bill) => (
-                    <tr key={bill.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 font-semibold text-gray-900">{formatCurrency(bill.amount, bill.currency || defaultCurrency)}</td>
-                      <td className="px-6 py-4 text-gray-600">{new Date(bill.due_date).toLocaleDateString()}</td>
+                    <tr key={bill.id} className="hover:bg-slate-100 transition">
+                      <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(bill.amount, bill.currency || defaultCurrency)}</td>
+                      <td className="px-6 py-4 text-slate-300">{formatAppDate(bill.due_date)}</td>
                       <td className="px-6 py-4">{getStatusBadge(bill.status)}</td>
                       <td className="px-6 py-4">
                         {bill.status === 'pending' && (
@@ -457,25 +577,25 @@ const TenantDashboard = () => {
         </div>
 
         {/* Recent Complaints */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-              <AlertCircle size={24} className="text-orange-600" />
+        <div className="card-base bg-white border border-slate-200">
+          <div className="px-6 py-4 border-b border-slate-200 bg-white rounded-t-lg">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+              <AlertCircle size={24} className="text-orange-400" />
               <span>Recent Complaints</span>
             </h2>
           </div>
-          <div className="divide-y">
+          <div className="divide-y divide-slate-700">
             {complaints.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-6 py-8 text-center text-slate-400">
                 No complaints filed
               </div>
             ) : (
               complaints.slice(0, 3).map((complaint) => (
-                <div key={complaint.id} className="px-6 py-4 hover:bg-gray-50 transition">
+                <div key={complaint.id} className="px-6 py-4 hover:bg-surface-soft transition">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{complaint.title}</h3>
-                      <p className="text-gray-600 text-sm mt-1">{complaint.description}</p>
+                      <h3 className="font-semibold text-slate-900">{complaint.title}</h3>
+                      <p className="text-slate-600 text-sm mt-1">{complaint.description}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
@@ -486,7 +606,7 @@ const TenantDashboard = () => {
                     </span>
                   </div>
                   <p className="text-gray-500 text-xs mt-2">
-                    {new Date(complaint.created_at).toLocaleDateString()}
+                    {formatAppDate(complaint.created_at)}
                   </p>
                 </div>
               ))
@@ -494,7 +614,7 @@ const TenantDashboard = () => {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

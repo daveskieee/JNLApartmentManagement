@@ -7,7 +7,10 @@ const LoadingSpinner = ({ fullPage = true, message = 'Loading...' }) => {
         {/* Outer rotating ring */}
         <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
         {/* Spinning ring */}
-        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 border-r-blue-400 animate-spin"></div>
+        <div
+          className="absolute inset-0 rounded-full border-4 border-transparent animate-spin"
+          style={{ borderTopColor: 'var(--accent)', borderRightColor: 'var(--accent-dark)' }}
+        ></div>
       </div>
       <p className="text-gray-600 text-lg font-medium">{message}</p>
       <p className="text-gray-400 text-sm mt-2">Please wait...</p>
@@ -16,7 +19,7 @@ const LoadingSpinner = ({ fullPage = true, message = 'Loading...' }) => {
 
   if (fullPage) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         {spinnerContent}
       </div>
     );

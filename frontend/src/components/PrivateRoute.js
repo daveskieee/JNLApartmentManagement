@@ -2,6 +2,14 @@ import React, { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 
+const normalizeRole = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'maintenance' || normalized === 'maintenance_staff') {
+    return 'maintenance';
+  }
+  return normalized;
+};
+
 const PrivateRoute = ({ children, role }) => {
   const { user, token, isLoading } = useContext(AuthContext);
   
@@ -47,12 +55,9 @@ const PrivateRoute = ({ children, role }) => {
 
   // Check role - handle case where role might not match exactly
   if (role) {
-    const userRole = finalUser.role || finalUser.userRole;
-    // Handle role variations (e.g., 'maintenance' vs 'maintenance_staff')
-    let roleMatch = userRole === role;
-    if (role === 'maintenance' && (userRole === 'maintenance' || userRole === 'maintenance_staff')) {
-      roleMatch = true;
-    }
+    const userRole = normalizeRole(finalUser.role || finalUser.userRole);
+    const requiredRole = normalizeRole(role);
+    const roleMatch = userRole === requiredRole;
     console.log('Role check:', userRole, 'vs', role, 'match:', roleMatch);
     if (!roleMatch) {
       console.log('Redirecting to login: role mismatch');

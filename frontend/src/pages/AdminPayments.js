@@ -4,6 +4,7 @@ import { FiSearch, FiFilter, FiDownload, FiRefreshCw, FiArrowLeft } from 'react-
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatAppDate, formatAppDateTime, formatAppTime } from '../utils/dateTime';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [createForm, setCreateForm] = useState({ tenantId: '', amount: '', dueDate: '', currency: 'PHP' });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const apiUrl = process.env.REACT_APP_API_URL || '';
   const token = localStorage.getItem('token');
 
   const formatCurrency = (amount = 0, currency = 'PHP') => {
@@ -214,7 +215,7 @@ const AdminPayments = () => {
       p.conversion_rate || '',
       p.payment_method,
       p.status,
-      new Date(p.created_at).toLocaleDateString()
+      formatAppDate(p.created_at)
     ]);
 
     const csv = [
@@ -233,12 +234,8 @@ const AdminPayments = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return formatAppDateTime(dateString, {
+      second: undefined,
     });
   };
 
@@ -248,6 +245,8 @@ const AdminPayments = () => {
         return 'bg-green-100 text-green-800';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
+      case 'submitted':
+        return 'bg-blue-100 text-blue-800';
       case 'failed':
         return 'bg-red-100 text-red-800';
       default:
@@ -263,7 +262,7 @@ const AdminPayments = () => {
           <div>
             <button
               onClick={() => navigate('/admin')}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4 transition"
+              className="flex items-center gap-2 text-indigo-700 hover:text-indigo-900 font-medium mb-4 transition"
             >
               <FiArrowLeft size={20} />
               Back to Dashboard
@@ -275,12 +274,12 @@ const AdminPayments = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+              className="px-4 py-2 brand-button text-white rounded-lg hover:opacity-95"
             >
               Create Bill
             </button>
             <button              onClick={() => navigate('/admin/utility-debug')}
-              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
             >
               Utility Debug
             </button>
@@ -294,52 +293,54 @@ const AdminPayments = () => {
 
         {/* Statistics Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-500 text-sm mb-1">Total Amount Paid</p>
-              <div className="space-y-2">
-                {(stats.totalStats.totalsByCurrency || []).map((t) => (
-                  <div key={t.currency} className="flex items-baseline justify-between">
-                    <p className="text-sm text-gray-600">{t.currency}</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatCurrency(t.total_amount, t.currency)}</p>
-                  </div>
-                ))}
+          <div className="mb-8 overflow-hidden rounded-3xl border bg-white shadow-sm" style={{ borderColor: 'var(--border)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
+              <div className="p-6">
+                <p className="text-slate-500 text-sm mb-1">Total Amount Paid</p>
+                <div className="space-y-2">
+                  {(stats.totalStats.totalsByCurrency || []).map((t) => (
+                    <div key={t.currency} className="flex items-baseline justify-between">
+                      <p className="text-sm text-gray-600">{t.currency}</p>
+                      <p className="text-2xl font-bold text-gray-900">{formatCurrency(t.total_amount, t.currency)}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{stats.totalStats.total_payments} total transactions</p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">{stats.totalStats.total_payments} total transactions</p>
-            </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-500 text-sm mb-1">Completed</p>
-              <p className="text-3xl font-bold text-green-600">
-                {stats.totalStats.completed_count || 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.completed_count || 0}</p>
-            </div>
+              <div className="p-6">
+                <p className="text-slate-500 text-sm mb-1">Completed</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {stats.totalStats.completed_count || 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.completed_count || 0}</p>
+              </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-500 text-sm mb-1">Pending</p>
-              <p className="text-3xl font-bold text-yellow-600">
-                {stats.totalStats.pending_count || 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.pending_count || 0}</p>
-            </div>
+              <div className="p-6">
+                <p className="text-slate-500 text-sm mb-1">Pending</p>
+                <p className="text-3xl font-bold text-yellow-600">
+                  {stats.totalStats.pending_count || 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.pending_count || 0}</p>
+              </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-500 text-sm mb-1">Failed</p>
-              <p className="text-3xl font-bold text-red-600">
-                {stats.totalStats.failed_count || 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.failed_count || 0}</p>
+              <div className="p-6">
+                <p className="text-slate-500 text-sm mb-1">Failed</p>
+                <p className="text-3xl font-bold text-red-600">
+                  {stats.totalStats.failed_count || 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">Transactions: {stats.totalStats.failed_count || 0}</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Filters and Controls */}
-        <div className="bg-white rounded-lg shadow mb-8 p-6">
+        <div className="card-base mb-8 p-6">
           {/* Create Bill Modal */}
           {showCreateModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="card-base p-6 w-full max-w-md">
                 <h3 className="text-lg font-semibold mb-4">Create Bill</h3>
                 <div className="space-y-3">
                   <select
@@ -433,6 +434,7 @@ const AdminPayments = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Statuses</option>
+              <option value="submitted">Submitted</option>
               <option value="completed">Completed</option>
               <option value="pending">Pending</option>
               <option value="failed">Failed</option>
@@ -441,7 +443,7 @@ const AdminPayments = () => {
             <button
               onClick={handleManualRefresh}
               disabled={refreshing}
-              className={`flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`flex items-center gap-2 px-4 py-2 brand-button text-white rounded-lg transition ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <FiRefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
               Refresh
@@ -496,7 +498,7 @@ const AdminPayments = () => {
 
             {lastUpdated && (
               <div className="text-xs text-gray-500">
-                Last updated: {lastUpdated.toLocaleTimeString()}
+                Last updated: {formatAppTime(lastUpdated)}
               </div>
             )}
           </div>
@@ -506,11 +508,11 @@ const AdminPayments = () => {
         {loading ? (
           <LoadingSpinner fullPage={false} message="Loading payments" />
         ) : payments.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
+          <div className="card-base p-12 text-center">
             <p className="text-gray-500 text-lg">No payments found</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="card-base overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-100 border-b">
                 <tr>

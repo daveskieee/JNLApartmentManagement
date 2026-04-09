@@ -176,7 +176,7 @@ router.post('/paypal/create', authenticateToken, async (req, res) => {
     // Store payment intent in database for tracking
     if (payment.id) {
       await dbRun(
-        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, original_amount, original_currency, converted_amount, converted_currency, conversion_rate, conversion_timestamp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, original_amount, original_currency, converted_amount, converted_currency, conversion_rate, conversion_timestamp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))',
         [tenantId, billId, originalAmount, originalCurrency, 'paypal', payment.id, 'pending', originalAmount, originalCurrency, convertedAmount, convertedCurrency, conversionRate, conversionTimestamp]
       );
     }
@@ -201,20 +201,72 @@ router.post('/paypal/create', authenticateToken, async (req, res) => {
   }
 });
 
-// Convert preview endpoint - returns rate and converted amount
+// Conversion endpoint - returns rate and converted amount
 router.get('/convert', authenticateToken, async (req, res) => {
   try {
     const { amount, from, to } = req.query;
+    console.log('[PAYMENT] Convert endpoint called:', { amount, from, to, tenantId: req.user?.id });
+    
     if (!amount || !from || !to) {
+      console.warn('[PAYMENT] Convert endpoint - missing parameters');
       return res.status(400).json({ success: false, message: 'amount, from and to are required' });
     }
 
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      console.warn('[PAYMENT] Convert endpoint - invalid amount:', amount);
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const rate = await exchange.getRate(from, to);
+    const converted = parseFloat((amountNum * rate).toFixed(2));
+    console.log('[PAYMENT] Convert result:', { amount: amountNum, from, to, rate, converted });
+    
+    res.json({ 
+      success: true, 
+      data: { 
+        rate: parseFloat(rate.toFixed(6)), 
+        converted,
+        from,
+        to
+      } 
+    });
+  } catch (err) {
+    console.error('[PAYMENT] Convert preview failed:', err.message || err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Conversion failed', 
+      error: err.message 
+    });
+  }
+});
+
+// Diagnostic endpoint - test conversion without requiring auth
+router.get('/test-convert', async (req, res) => {
+  try {
+    const { amount = '1000', from = 'PHP', to = 'USD' } = req.query;
+    console.log('[PAYMENT] Test convert called:', { amount, from, to });
+    
     const rate = await exchange.getRate(from, to);
     const converted = parseFloat((parseFloat(amount) * rate).toFixed(2));
-    res.json({ success: true, data: { rate, converted } });
+    
+    res.json({ 
+      success: true, 
+      data: { 
+        rate: parseFloat(rate.toFixed(6)), 
+        converted,
+        from,
+        to,
+        message: 'Conversion test successful'
+      } 
+    });
   } catch (err) {
-    console.error('Convert preview failed:', err);
-    res.status(500).json({ success: false, message: 'Conversion failed', error: err.message });
+    console.error('[PAYMENT] Test convert failed:', err.message || err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Test conversion failed', 
+      error: err.message 
+    });
   }
 });
 
@@ -301,7 +353,7 @@ router.post('/paypal/execute', authenticateToken, async (req, res) => {
       const paymentDate = new Date().toISOString().split('T')[0];
       
       await dbRun(
-        'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = ?, updated_at = datetime("now") WHERE id = ?',
         ['paid', 'paypal', paymentDate, billId]
       );
 
@@ -391,7 +443,7 @@ router.post('/submit', authenticateToken, async (req, res) => {
     const newStatus = parseFloat(amount) === parseFloat(bill.amount) ? 'paid' : 'pending';
     
     await dbRun(
-      'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = ?, updated_at = datetime("now") WHERE id = ?',
       [newStatus, paymentMethod, paymentDate, billId]
     );
 
@@ -415,12 +467,12 @@ router.post('/submit', authenticateToken, async (req, res) => {
 
     if (paymentMethod === 'paypal') {
       await dbRun(
-        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, original_amount, original_currency, converted_amount, converted_currency, conversion_rate, conversion_timestamp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, original_amount, original_currency, converted_amount, converted_currency, conversion_rate, conversion_timestamp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))',
         [tenantId, billId, originalAmount, originalCurrency, paymentMethod, referenceNumber || 'MANUAL', 'submitted', originalAmount, originalCurrency, convertedAmount, convertedCurrency, conversionRate, conversionTimestamp]
       );
     } else {
       await dbRun(
-        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        'INSERT INTO payment_history (tenant_id, rent_id, amount, currency, payment_method, transaction_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))',
         [tenantId, billId, amount, billCurrency, paymentMethod, referenceNumber || 'MANUAL', 'submitted']
       );
     }
@@ -479,7 +531,7 @@ router.post('/process', authenticateToken, async (req, res) => {
     
     // Record payment
     await dbRun(
-      'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE rent_payments SET status = ?, payment_method = ?, paid_date = datetime("now") WHERE id = ?',
       ['paid', paymentMethod, rentId]
     );
 
@@ -553,7 +605,7 @@ router.get('/paypal/callback', async (req, res) => {
 
       // Update rent_payments as paid with current date
       await dbRun(
-        'UPDATE rent_payments SET status = ?, paid_date = CURRENT_TIMESTAMP, payment_method = ? WHERE id = ?',
+        'UPDATE rent_payments SET status = ?, paid_date = datetime("now"), payment_method = ? WHERE id = ?',
         ['paid', 'paypal', rentId]
       );
 
@@ -614,50 +666,92 @@ router.get('/admin/all', authenticateToken, async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = `
-      SELECT 
-        ph.id,
-        ph.tenant_id,
-        ph.rent_id,
-        ph.amount,
-        ph.original_amount,
-        ph.original_currency,
-        ph.converted_amount,
-        ph.converted_currency,
-        ph.conversion_rate,
-        ph.payment_method,
-        ph.transaction_id,
-        ph.status,
-        ph.created_at,
-        u.full_name as tenant_name,
-        u.email as tenant_email,
-        a.unit_number,
-        rp.due_date,
-        rp.status as bill_status
-      FROM payment_history ph
-      JOIN users u ON ph.tenant_id = u.id
-      LEFT JOIN apartments a ON u.id = a.tenant_id
-      JOIN rent_payments rp ON ph.rent_id = rp.id
+    const combinedBase = `
+      FROM (
+        SELECT 
+          CAST(ph.id AS TEXT) AS id,
+          ph.tenant_id,
+          ph.rent_id,
+          ph.amount,
+          ph.currency,
+          ph.original_amount,
+          ph.original_currency,
+          ph.converted_amount,
+          ph.converted_currency,
+          ph.conversion_rate,
+          ph.payment_method,
+          ph.transaction_id,
+          ph.status,
+          ph.created_at,
+          u.full_name as tenant_name,
+          u.email as tenant_email,
+          a.unit_number,
+          rp.due_date,
+          rp.status as bill_status
+        FROM payment_history ph
+        JOIN users u ON ph.tenant_id = u.id
+        LEFT JOIN apartments a ON u.id = a.tenant_id
+        JOIN rent_payments rp ON ph.rent_id = rp.id
+
+        UNION ALL
+
+        SELECT
+          'bill-' || CAST(rp.id AS TEXT) AS id,
+          rp.tenant_id,
+          rp.id as rent_id,
+          rp.amount,
+          rp.currency,
+          NULL as original_amount,
+          NULL as original_currency,
+          NULL as converted_amount,
+          NULL as converted_currency,
+          NULL as conversion_rate,
+          'unsubmitted' as payment_method,
+          '-' as transaction_id,
+          'pending' as status,
+          rp.created_at,
+          u.full_name as tenant_name,
+          u.email as tenant_email,
+          a.unit_number,
+          rp.due_date,
+          rp.status as bill_status
+        FROM rent_payments rp
+        JOIN users u ON rp.tenant_id = u.id
+        LEFT JOIN apartments a ON u.id = a.tenant_id
+        WHERE rp.status = 'pending'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM payment_history ph2
+            WHERE ph2.rent_id = rp.id
+          )
+      ) combined
     `;
 
-    let params = [];
-    
+    const params = [];
+    let whereClause = '';
     if (status) {
-      query += ' WHERE ph.status = ?';
+      whereClause = ' WHERE combined.status = ?';
       params.push(status);
     }
 
-    query += ' ORDER BY ph.created_at DESC LIMIT ? OFFSET ?';
+    const query = `
+      SELECT *
+      ${combinedBase}
+      ${whereClause}
+      ORDER BY datetime(created_at) DESC
+      LIMIT ? OFFSET ?
+    `;
     params.push(parseInt(limit), offset);
 
     const payments = await dbAll(query, params);
 
-    // Get total count
-    let countQuery = 'SELECT COUNT(*) as count FROM payment_history';
-    if (status) {
-      countQuery += ' WHERE status = ?';
-    }
-    
+    // Get total count (must match combined result)
+    const countQuery = `
+      SELECT COUNT(*) as count
+      ${combinedBase}
+      ${whereClause}
+    `;
+
     const countResult = await dbGet(countQuery, status ? [status] : []);
     const totalCount = countResult.count;
 

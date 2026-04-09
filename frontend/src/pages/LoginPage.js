@@ -1,21 +1,56 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Home, Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import AuthContext from '../context/AuthContext';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [redirectMessage, setRedirectMessage] = useState('Preparing dashboard...');
+  const [redirectRoleLabel, setRedirectRoleLabel] = useState('Workspace');
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const navigateByRoleWithTransition = async (userObj) => {
+    const role = userObj?.role;
+    const targetPath = role === 'admin'
+      ? '/admin'
+      : (role === 'maintenance' || role === 'maintenance_staff')
+        ? '/maintenance'
+        : '/tenant';
+
+    const message = role === 'admin'
+      ? 'Loading admin workspace...'
+      : (role === 'maintenance' || role === 'maintenance_staff')
+        ? 'Loading maintenance workspace...'
+        : 'Loading tenant workspace...';
+
+    const roleLabel = role === 'admin'
+      ? 'Admin Dashboard'
+      : (role === 'maintenance' || role === 'maintenance_staff')
+        ? 'Maintenance Dashboard'
+        : 'Tenant Dashboard';
+
+    setRedirectMessage(message);
+    setRedirectRoleLabel(roleLabel);
+    setRedirecting(true);
+    await delay(1100);
+    navigate(targetPath);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    let keepLoading = false;
 
     try {
       // Prefer using AuthContext.login when available so AuthContext state updates immediately
@@ -25,13 +60,15 @@ const LoginPage = () => {
           // login() already stores token/user in localStorage and sets context state
           toast.success('Login successful!');
           const userObj = data.user || data?.data?.user;
-          if (userObj?.role === 'admin') {
-            navigate('/admin');
-          } else if (userObj?.role === 'maintenance' || userObj?.role === 'maintenance_staff') {
-            navigate('/maintenance');
-          } else {
-            navigate('/tenant');
+          
+          // Check if user needs to change password (first login)
+          if (userObj?.firstLogin) {
+            navigate('/force-change-password');
+            return;
           }
+
+          keepLoading = true;
+          await navigateByRoleWithTransition(userObj);
           return;
         } catch (ctxErr) {
           console.warn('AuthContext login failed, falling back to direct request:', ctxErr?.response || ctxErr?.message || ctxErr);
@@ -70,67 +107,97 @@ const LoginPage = () => {
 
       toast.success('Login successful!');
 
-      // Navigate based on role
-      if (user.role === 'admin') {
-        navigate('/admin');
-      } else if (user.role === 'maintenance' || user.role === 'maintenance_staff') {
-        navigate('/maintenance');
-      } else {
-        navigate('/tenant');
+      // Check if user needs to change password (first login)
+      if (user.firstLogin) {
+        navigate('/force-change-password');
+        return;
       }
+
+      keepLoading = true;
+      await navigateByRoleWithTransition(user);
     } catch (error) {
       console.error('Login error:', error.response || error.message || error);
       const serverMsg = error.response?.data?.message || error.response?.data || error.message || 'Login failed';
       toast.error(typeof serverMsg === 'string' ? serverMsg : 'Login failed (see console)');
     } finally {
-      setLoading(false);
+      if (!keepLoading) {
+        setLoading(false);
+      }
     }
   };
 
+  if (redirecting) {
+    return (
+      <div className="min-h-screen relative overflow-hidden page-wrapper">
+        <div className="absolute inset-0 bg-slate-100"></div>
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-md p-8 shadow-2xl">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#c77b69] text-white font-bold text-2xl shadow-lg">
+                PM
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Property Manager</p>
+                <h2 className="text-xl font-bold text-slate-900">{redirectRoleLabel}</h2>
+              </div>
+            </div>
+
+            <p className="text-slate-700 font-medium">{redirectMessage}</p>
+            <p className="text-sm text-slate-500 mt-1">Finalizing secure session and permissions</p>
+
+            <div className="mt-6 flex items-center gap-2">
+              <span className="splash-progress-dot splash-progress-dot-1"></span>
+              <span className="splash-progress-dot splash-progress-dot-2"></span>
+              <span className="splash-progress-dot splash-progress-dot-3"></span>
+              <span className="splash-progress-dot splash-progress-dot-4"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-      {/* Animated Background with Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600"></div>
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4 page-wrapper">
+      {/* Animated Background */}
+      <div className="absolute inset-0 bg-slate-100"></div>
       
       {/* Decorative shapes */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }}></div>
-      <div className="absolute bottom-0 left-1/3 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '4s' }}></div>
-      
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 opacity-10" style={{
-        backgroundImage: 'linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px)',
-        backgroundSize: '50px 50px'
-      }}></div>
+      <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }}></div>
+      <div className="absolute bottom-0 left-1/3 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '4s' }}></div>
       
       {/* Content */}
       <div className="w-full max-w-md relative z-10">
         {/* Logo Section */}
-        <div className="text-center mb-8">
-          <div className="inline-block bg-white rounded-xl p-4 mb-4 shadow-2xl hover:shadow-3xl transition-shadow duration-300 transform hover:scale-105">
-            <span className="text-blue-600 font-bold text-3xl">PM</span>
+        <div className="text-center mb-24">
+            <div className="inline-block bg-[#c77b69] rounded-xl p-4 mb-8 shadow-lg hover:shadow-xl transition-shadow duration-300 transform hover:scale-105">
+              <span className="text-white font-bold text-3xl">PM</span>
           </div>
-          <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">Property Manager</h1>
-          <p className="text-blue-100 text-lg drop-shadow-md">Manage your property with ease</p>
+          <h1 className="text-5xl font-bold text-slate-900 mb-3">Property Manager</h1>
+          <p className="text-slate-600 text-lg">Manage your property with ease</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8 backdrop-blur-sm border border-white border-opacity-20">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Welcome Back</h2>
+        <div className="card-base p-8 mt-8">
+          <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">Welcome Back</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
+              <label className="text-label mb-2 block">
                 Email Address
               </label>
               <div className="relative">
-                <Mail size={20} className="absolute left-4 top-4 text-blue-400" />
+                <Mail size={18} className="absolute left-3 top-4 text-indigo-400 pointer-events-none" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-gray-50 hover:bg-gray-100"
+                  style={{ paddingLeft: '60px' }}
+                  className="w-full pr-4 py-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   placeholder="your@email.com"
                   required
                 />
@@ -139,49 +206,64 @@ const LoginPage = () => {
 
             {/* Password Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
+              <label className="text-label mb-2 block">
                 Password
               </label>
               <div className="relative">
-                <Lock size={20} className="absolute left-4 top-4 text-blue-400" />
+                <Lock size={18} className="absolute left-3 top-4 text-indigo-400 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-gray-50 hover:bg-gray-100"
+                  style={{ paddingLeft: '60px' }}
+                  className="w-full pr-12 py-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-4 text-gray-400 hover:text-blue-500 transition"
+                  className="absolute right-4 top-3.5 text-slate-400 hover:text-indigo-600 transition"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
 
+            {/* Forgot Password Link */}
+            <div className="text-right mt-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setShowForgotPasswordModal(true)}
+                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Forgot Password?
+              </button>
+            </div>
+
             {/* Login Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transform hover:scale-105 active:scale-95"
+              className="w-full mt-4 btn-primary font-bold py-3 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LogIn size={20} />
-              <span>{loading ? 'Logging in...' : 'Sign In'}</span>
+              <span>{loading ? 'Signing in...' : 'Sign In'}</span>
             </button>
           </form>
 
-          {/* Register Link */}
-          <p className="text-center text-gray-600 mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
-              Register here
-            </Link>
-          </p>
+          {/* Back to Dashboard Button */}
+          <Link to="/" className="block w-full mt-6 px-4 py-3 rounded-lg bg-[#c77b69] text-white border border-[#c77b69] shadow-sm hover:bg-[#9d5f51] transition text-center font-semibold">
+            <Home size={16} className="inline mr-2" /> Back to Dashboard
+          </Link>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </div>
   );
 };
